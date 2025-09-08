@@ -1,12 +1,11 @@
 import torch
 from llama_index.llms.huggingface import HuggingFaceLLM
-# setup prompts - specific to StableLM
 from llama_index.core import PromptTemplate
 from llama_index.core import Settings
 # adapted from https://huggingface.co/Writer/camel-5b-hf
 
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, List
 from llama_index.core.llms import ChatMessage, TextBlock, ImageBlock, MessageRole
 
 
@@ -18,19 +17,17 @@ query_wrapper_prompt = PromptTemplate(
 llm = HuggingFaceLLM(
     context_window=2048,
     max_new_tokens=256,
-    generate_kwargs={"temperature": 0.25, "do_sample": False},
+    generate_kwargs={"temperature": 0.0, "do_sample": False},
     query_wrapper_prompt=query_wrapper_prompt,
     tokenizer_name="openai/gpt-oss-20b",
     model_name="openai/gpt-oss-20b",
     device_map="auto",
     tokenizer_kwargs={"max_length": 2048},
-    # uncomment this if using CUDA to reduce memory usage
-    # model_kwargs={"torch_dtype": torch.float16}
 )
 
 
 class nutrition(BaseModel):
-    """A representation of information from an invoice."""
+    """Representation of energy and nutrition content of meal from image/description."""
 
     kcal: float = Field(
         description="The total energy content of the meal in kcal"
@@ -39,12 +36,19 @@ class nutrition(BaseModel):
     fat: float = Field(description="The total fat content of the meal")
     protein: float = Field(description="The total protein content of the meal")
 
-    
+
+class FoodItem(BaseModel):
+    """Food item recognized"""
+    id: int = Field (description="id of identified food item")
+    food_item: str = Field (description="identified food item")
+class Recognition(BaseModel):
+    """Representation of food item list"""
+    food_items: list[FoodItem] = Field(description="A description of all food items provided in image")
 
 
 sllm = llm.as_structured_llm(nutrition)
-
-prompt="You are nutrition assistant - estimating nutrition content: energy, carbohydrate, fat,, and protein - based on the following knowledge - per 100g cookie, pumpkin there is 68.7 g carbs, 450 kcal, 6.2g protein, and 18.1g fat, per 100g Coffee, espresso there is 1.67g carbs, 9 kcal, 0.12 protein, and 0.18 fat"
+knowledge="per 100g cookie, pumpkin there is 68.7 g carbs, 450 kcal, 6.2g protein, and 18.1g fat, per 100g Coffee, espresso there is 1.67g carbs, 9 kcal, 0.12 protein, and 0.18 fat" #ideally you should extract this automatically by matching to the excel provided - usda fdc - but manually providing is also acceptable
+prompt=f"You are nutrition assistant - estimating nutrition content: energy, carbohydrate, fat,, and protein - based on the following knowledge - {knowledge}"
 message="10g of cookie, pumpkin and 100g of coffee, espresso"
 system_msg = ChatMessage(role=MessageRole.SYSTEM, blocks=[
             TextBlock(block_type="text", text=prompt)
@@ -55,6 +59,4 @@ user_msg = ChatMessage(role=MessageRole.USER, blocks=[
 
 
 resp=sllm.chat([system_msg, user_msg])
-
-# >>> resp
-# ChatResponse(message=ChatMessage(role=<MessageRole.ASSISTANT: 'assistant'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='{"kcal":54,"cho":7,"fat":2,"protein":1}')]), raw=nutrition(kcal=54, cho=7, fat=2, protein=1), delta=None, logprobs=None, additional_kwargs={})
+# ChatResponse(message=ChatMessage(role=<MessageRole.ASSISTANT: 'assistant'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='{"kcal":54.5,"cho":7.87,"fat":1.81,"protein":0.62}')]), raw=nutrition(kcal=54.5, cho=7.87, fat=1.81, protein=0.62), delta=None, logprobs=None, additional_kwargs={})

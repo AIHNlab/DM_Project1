@@ -184,12 +184,12 @@ class Recognition(BaseModel):
 
 sllm = llm.as_structured_llm(Recognition)
 prompt=f"You are a meal image analyser providing information of the foods you see in an image"
-message="Identify the foods in my meal image"
+message="Look at my meal image and correctly identify the foods that you see in my meal image"
 system_msg = ChatMessage(role=MessageRole.SYSTEM, blocks=[
             TextBlock(block_type="text", text=prompt)
         ])
 
-image=Image.open("coffee_espresso.jpg")
+image=Image.open("image_1.jpg")
 user_msg = ChatMessage(role=MessageRole.USER, blocks=[
             TextBlock(block_type="text", text=message),
             ImageBlock(block_type="image",text=image)
